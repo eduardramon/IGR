@@ -37,10 +37,10 @@ class ShapeSpaceRunner:
             before_epoch = time()
             for data_index,(mnfld_pnts, normals, indices) in enumerate(self.train_dataloader):
 
-                mnfld_pnts = mnfld_pnts.cuda()
+                mnfld_pnts = utils.to_cuda(mnfld_pnts)
 
                 if self.with_normals:
-                    normals = normals.cuda()
+                    normals = utils.to_cuda(normals)
 
                 nonmnfld_pnts = self.sampler.get_points(mnfld_pnts)
 
@@ -78,7 +78,7 @@ class ShapeSpaceRunner:
 
                 # latent loss
 
-                latent_loss = self.latent_size_reg(indices.cuda())
+                latent_loss = self.latent_size_reg(utils.to_cuda(indices))
 
                 loss = loss + self.latent_lambda * latent_loss
 
@@ -218,7 +218,7 @@ class ShapeSpaceRunner:
         self.local_sigma = self.conf.get_float('network.sampler.properties.local_sigma')
         self.sampler = Sampler.get_sampler(self.conf.get_string('network.sampler.sampler_type'))(self.global_sigma, self.local_sigma)
 
-        train_split_file = './splits/{0}'.format(kwargs['split_file'])
+        train_split_file = os.path.abspath(kwargs['split_file'])
 
         with open(train_split_file, "r") as f:
             train_split = json.load(f)
@@ -268,7 +268,7 @@ class ShapeSpaceRunner:
 
         self.startepoch = 0
 
-        self.lat_vecs = torch.zeros(self.num_scenes, self.latent_size).cuda()
+        self.lat_vecs = utils.to_cuda(torch.zeros(self.num_scenes, self.latent_size))
         self.lat_vecs.requires_grad_()
 
         self.optimizer = torch.optim.Adam(
@@ -290,7 +290,8 @@ class ShapeSpaceRunner:
             old_checkpnts_dir = os.path.join(self.expdir, timestamp, 'checkpoints')
 
             data = torch.load(os.path.join(old_checkpnts_dir, self.latent_codes_subdir, str(kwargs['checkpoint']) + '.pth'))
-            self.lat_vecs = data["latent_codes"].cuda()
+
+            self.lat_vecs = utils.to_cuda(data["latent_codes"])
 
             saved_model_state = torch.load(os.path.join(old_checkpnts_dir, 'ModelParameters', str(kwargs['checkpoint']) + ".pth"))
             self.network.load_state_dict(saved_model_state["model_state_dict"])
@@ -331,7 +332,7 @@ class ShapeSpaceRunner:
     def add_latent(self, points, indices):
         batch_size, num_of_points, dim = points.shape
         points = points.reshape(batch_size * num_of_points, dim)
-        latent_inputs = torch.zeros(0).cuda()
+        latent_inputs = utils.to_cuda(torch.zeros(0))
 
         for ind in indices.numpy():
             latent_ind = self.lat_vecs[ind]
