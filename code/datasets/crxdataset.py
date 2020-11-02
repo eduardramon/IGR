@@ -48,6 +48,9 @@ class CRXDataSet(data.Dataset):
     def __len__(self):
         return len(self.samples)
 
+    def get_info(self, index):
+        return [self.samples[index]['case_identifier']]
+
     def load(self, dataset_path):
         with open(dataset_path) as f:
             self.dataset = json.load(f)
@@ -72,6 +75,8 @@ class CRXDataSet(data.Dataset):
         for sample in tqdm.tqdm(self.samples):
             mesh_file = sample['mesh']
             mesh_file_cached = f'{mesh_file}.memmap'
+            if os.path.exists(mesh_file_cached): continue
+
             # Load vertices
             mesh = trimesh.load_mesh(mesh_file)
             point_set_mnlfld = mesh.vertices.astype(np.float32)
