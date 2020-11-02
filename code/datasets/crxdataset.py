@@ -10,7 +10,7 @@ import utils.general as utils
 
 class CRXDataSet(data.Dataset):
 
-    def __init__(self, dataset_path, split, points_batch=1024, d_in=3, with_gt=False, with_normals=False):
+    def __init__(self, dataset_path, split=None, points_batch=1024, d_in=3, with_gt=False, with_normals=False):
 
         self.dataset_path = dataset_path
         self.split = split
