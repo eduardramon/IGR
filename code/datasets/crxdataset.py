@@ -46,7 +46,7 @@ class CRXDataSet(data.Dataset):
         return point_set_mnlfld[:, :self.d_in], normals, index
 
     def __len__(self):
-        return len(self.npyfiles_mnfld)
+        return len(self.samples)
 
     def load(self, dataset_path):
         with open(dataset_path) as f:
