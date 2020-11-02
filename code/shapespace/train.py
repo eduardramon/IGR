@@ -7,6 +7,10 @@ from time import time
 import argparse
 import json
 import torch
+
+code_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, code_dir)
+
 import utils.general as utils
 from model.sample import Sampler
 from model.network import gradient
@@ -135,7 +139,7 @@ class ShapeSpaceRunner:
         self.home_dir = os.path.abspath(os.pardir)
 
         if type(kwargs['conf']) == str:
-            self.conf_filename = './shapespace/' + kwargs['conf']
+            self.conf_filename = os.path.abspath(kwargs['conf'])
             self.conf = ConfigFactory.parse_file(self.conf_filename)
         else:
             self.conf = kwargs['conf']
