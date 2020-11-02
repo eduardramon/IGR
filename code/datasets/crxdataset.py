@@ -26,7 +26,7 @@ class CRXDataSet(data.Dataset):
         mesh_file = self.samples[index]['mesh']
         mesh_file_cached = f'{mesh_file}.memmap'
         if os.path.exists(mesh_file_cached):
-            return np.memmap(mesh_file_cached, dtype='float32', mode='r').reshape(-1,3).astype(np.float32)
+            return np.memmap(mesh_file_cached, dtype='float32', mode='r').reshape(-1,6).astype(np.float32)
         else:
             return trimesh.load_mesh(mesh_file).vertices.astype(np.float32)
 
@@ -77,13 +77,12 @@ class CRXDataSet(data.Dataset):
             mesh_file_cached = f'{mesh_file}.memmap'
             if os.path.exists(mesh_file_cached): continue
 
-            # Load vertices
+            # Load vertices and normals
             mesh = trimesh.load_mesh(mesh_file)
             point_set_mnlfld = mesh.vertices.astype(np.float32)
             point_set_mnlfld = (point_set_mnlfld + displacement) * scaling
-            if self.with_normals:
-                normals = mesh.vertex_normals.astype(np.float32)
-                point_set_mnlfld = np.concatenate((point_set_mnlfld, normals), axis=-1)
+            normals = mesh.vertex_normals.astype(np.float32)
+            point_set_mnlfld = np.concatenate((point_set_mnlfld, normals), axis=-1)
             # Save memmap
             fp = np.memmap(mesh_file_cached, dtype='float32', mode='w+', shape=point_set_mnlfld.shape)
             fp[:] = point_set_mnlfld[:]
