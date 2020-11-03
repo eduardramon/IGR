@@ -10,7 +10,7 @@ import utils.general as utils
 
 class CRXDataSet(data.Dataset):
 
-    def __init__(self, dataset_path, split=None, points_batch=1024, d_in=3, with_gt=False, with_normals=False):
+    def __init__(self, dataset_path, split, points_batch=1024, d_in=3, with_gt=False, with_normals=False):
 
         self.dataset_path = dataset_path
         self.split = split
@@ -54,7 +54,7 @@ class CRXDataSet(data.Dataset):
     def load(self, dataset_path):
         with open(dataset_path) as f:
             self.dataset = json.load(f)
-        self.samples = self.dataset['database']['samples']
+        self.samples = [s for s in self.dataset['database']['samples'] if s['case_identifier'] in self.split]
 
     def cache(self, min_corner=[-1,-1,-1], max_corner=[1,1,1]):
 
