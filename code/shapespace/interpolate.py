@@ -1,11 +1,16 @@
 import argparse
 import os
+import sys
 import json
-import utils.general as utils
 import torch
 import numpy as np
-import utils.plots as plt
 from pyhocon import ConfigFactory
+
+code_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, code_dir)
+
+import utils.general as utils
+import utils.plots as plt
 from shapespace.latent_optimizer import optimize_latent
 
 
@@ -19,7 +24,7 @@ def interpolate(network, interval, experiment_directory, checkpoint, split_file,
     points_1, normals_1, index_1 = ds[0]
     points_2, normals_2, index_2 = ds[1]
 
-    pnts = torch.cat([points_1, points_2], dim=0).cuda()
+    pnts = utils.to_cuda(torch.cat([points_1, points_2], dim=0))
 
     name_1 = str.join('_', ds.get_info(0))
     name_2 = str.join('_', ds.get_info(0))
@@ -32,8 +37,8 @@ def interpolate(network, interval, experiment_directory, checkpoint, split_file,
 
     my_path = os.path.join(experiment_directory, 'interpolate', str(checkpoint), name)
 
-    latent_1 = optimize_latent(points_1.cuda(), normals_1.cuda(), conf, 800, network, 5e-3)
-    latent_2 = optimize_latent(points_2.cuda(), normals_2.cuda(), conf, 800, network, 5e-3)
+    latent_1 = optimize_latent(utils.to_cuda(points_1), utils.to_cuda(normals_1), conf, 800, network, 5e-3)
+    latent_2 = optimize_latent(utils.to_cuda(points_2), utils.to_cuda(normals_2), conf, 800, network, 5e-3)
 
     pnts = torch.cat([latent_1.repeat(pnts.shape[0], 1), pnts], dim=-1)
 
@@ -172,8 +177,11 @@ if __name__ == '__main__':
     network.load_state_dict({k.replace('module.', ''): v for k, v in saved_model_state["model_state_dict"].items()})
     split_file = os.path.join(code_path, 'splits', args.split)
 
+    if torch.cuda.is_available():
+        network.cuda()
+
     interpolate(
-        network=network.cuda(),
+        network=network,
         interval=args.interval,
         experiment_directory=experiment_directory,
         checkpoint=saved_model_epoch,
