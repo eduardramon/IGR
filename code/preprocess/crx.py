@@ -5,6 +5,7 @@ import json
 
 import trimesh
 import numpy as np
+from tqdm import tqdm
 
 code_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, code_dir)
@@ -31,7 +32,8 @@ if __name__ == '__main__':
     # Symmetrize DB
     samples_dir = os.path.join(os.path.dirname(args.dataset_path), 'cases')
     symmetric_samples = []
-    for sample in dataset['database']['samples']:
+    print('Symmetrizing DB')
+    for sample in tqdm(dataset['database']['samples']):
         symmetric_sample = {}
 
         # Create symmetric sample directory
@@ -57,7 +59,8 @@ if __name__ == '__main__':
     min_corner = [-1,-1,-1]
     max_corner = [ 1, 1, 1]
     mean_bounds = np.zeros((2,3))
-    for sample in dataset['database']['samples']:
+    print('Computing stats for normalization')
+    for sample in tqdm(dataset['database']['samples']):
         # Compute mean center
         mean_bounds += np.array(sample['mesh_bounds']) / len(dataset['database']['samples'])
     mean_center = np.sum(mean_bounds, axis=0) / 2
@@ -69,7 +72,8 @@ if __name__ == '__main__':
     scaling = target_max_edge / max_mean_edge
 
     # Normlaize samples
-    for sample in dataset['database']['samples']:
+    print('Normalizing and caching samples')
+    for sample in tqdm(dataset['database']['samples']):
         mesh_file = sample['mesh']
 
         # Load vertices and normals
