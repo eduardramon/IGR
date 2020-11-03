@@ -82,7 +82,7 @@ if __name__ == '__main__':
         "-g",
         dest="gpu_num",
         required=False,
-        default='5'
+        default='ignore'
     )
 
     arg_parser.add_argument(
@@ -153,7 +153,7 @@ if __name__ == '__main__':
     args = arg_parser.parse_args()
 
     code_path = os.path.abspath(os.path.curdir)
-    exps_path = os.path.join(os.path.abspath(os.path.pardir), args.exps_dir)
+    exps_path = os.path.join(code_path, args.exps_dir)
 
     if args.gpu_num != 'ignore':
         os.environ["CUDA_VISIBLE_DEVICES"] = '{0}'.format(args.gpu_num)
