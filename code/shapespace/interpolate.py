@@ -27,7 +27,7 @@ def interpolate(network, interval, experiment_directory, checkpoint, split_file,
     pnts = utils.to_cuda(torch.cat([points_1, points_2], dim=0))
 
     name_1 = str.join('_', ds.get_info(0))
-    name_2 = str.join('_', ds.get_info(0))
+    name_2 = str.join('_', ds.get_info(1))
 
     name = name_1 + '_and_' + name_2
 
@@ -59,7 +59,7 @@ def interpolate(network, interval, experiment_directory, checkpoint, split_file,
                              resolution=resolution,
                              mc_value=0,
                              is_uniform_grid=uniform_grid,
-                             verbose=True,
+                             verbose=False,
                              save_html=False,
                              save_ply=True,
                              overwrite=True,
@@ -74,7 +74,8 @@ if __name__ == '__main__':
         "--interval",
         "-i",
         dest="interval",
-        default=3
+        default=3,
+        type=int
     )
 
     arg_parser.add_argument(
