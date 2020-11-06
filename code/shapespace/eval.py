@@ -1,9 +1,14 @@
 import argparse
 import os
+import sys
 import json
-import utils.general as utils
 import torch
 from pyhocon import ConfigFactory
+
+code_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, code_dir)
+
+import utils.general as utils
 import utils.plots as plt
 from shapespace.latent_optimizer import optimize_latent
 
@@ -35,7 +40,7 @@ def evaluate(network, experiment_directory, conf, checkpoint, split_file, epoch,
 
         network.train()
 
-        latent = optimize_latent(input_pc, normals, conf, 800, network, lr=5e-3)
+        latent = optimize_latent(input_pc, normals, conf, 2000, network, lr=5e-3)
 
         all_latent = latent.repeat(input_pc.shape[0], 1)
 
@@ -143,9 +148,9 @@ if __name__ == '__main__':
 
     args = arg_parser.parse_args()
 
-    code_path = os.path.abspath(os.path.curdir)
-    exps_path = os.path.join(os.path.abspath(os.path.pardir), args.exps_dir)
-
+    code_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    exps_path = os.path.join(code_path, args.exps_dir)
+    
     if args.gpu_num != 'ignore':
         os.environ["CUDA_VISIBLE_DEVICES"] = '{0}'.format(args.gpu_num)
 
