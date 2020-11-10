@@ -219,9 +219,10 @@ class ShapeSpaceRunner:
         self.sampler = Sampler.get_sampler(self.conf.get_string('network.sampler.sampler_type'))(self.global_sigma, self.local_sigma)
 
         train_split_file = os.path.abspath(kwargs['split_file'])
-
+        print(f'Loading split file {train_split_file}')
         with open(train_split_file, "r") as f:
             train_split = json.load(f)
+        print(f'Size of the split: {len(train_split)} samples')
 
         self.d_in = self.conf.get_int('train.d_in')
 
