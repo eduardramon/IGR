@@ -243,7 +243,7 @@ def plot_cuts(points,decoder,path,epoch,near_zero,latent=None):
     for index, pos in enumerate(position_cut):
         #fig = tools.make_subplots(rows=1, cols=1)
 
-        field_input = torch.tensor(pos.T, dtype=torch.float).cuda()
+        field_input = utils.to_cuda(torch.tensor(pos.T, dtype=torch.float))
         z = []
         for i, pnts in enumerate(torch.split(field_input, 1000, dim=-1)):
             input_=pnts
@@ -317,7 +317,7 @@ def get_grid(points,resolution):
         y = np.arange(input_min[1] - eps, input_max[1] + length / (z.shape[0] - 1) + eps, length / (z.shape[0] - 1))
 
     xx, yy, zz = np.meshgrid(x, y, z)
-    grid_points = torch.tensor(np.vstack([xx.ravel(), yy.ravel(), zz.ravel()]).T, dtype=torch.float).cuda()
+    grid_points = utils.to_cuda(torch.tensor(np.vstack([xx.ravel(), yy.ravel(), zz.ravel()]).T, dtype=torch.float))
     return {"grid_points":grid_points,
             "shortest_axis_length":length,
             "xyz":[x,y,z],
