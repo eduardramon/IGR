@@ -7,21 +7,20 @@ import trimesh
 import numpy as np
 from tqdm import tqdm
 
+from core_lib.cameras import PinholeCamera
+from core_lib.utilities import create_directory
+
 code_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, code_dir)
 
 import utils.general as utils
 
-def symmetrize_mesh(mesh):
-    vertices_sym = mesh.vertices.copy()
-    vertices_sym[:,0] = -vertices_sym[:,0]
-    faces_sym = np.concatenate((mesh.faces[:,0,None], mesh.faces[:,2,None], mesh.faces[:,1,None]), axis=-1)
-    return trimesh.Trimesh(vertices_sym, faces_sym)
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-path', required=True, type=str, help='Database path')
+    parser.add_argument('--skip-walls', action='store_true', help='Skip cases with walls')
     parser.add_argument('--output-dataset-path', required=True, type=str, help='Output dataset path')
 
     args = parser.parse_args()
@@ -29,31 +28,9 @@ if __name__ == '__main__':
     with open(args.dataset_path) as f:
         dataset = json.load(f)
 
-    # Symmetrize DB
-    samples_dir = os.path.join(os.path.dirname(args.dataset_path), 'cases')
-    symmetric_samples = []
-    print('Symmetrizing DB')
-    for sample in tqdm(dataset['database']['samples']):
-        symmetric_sample = {}
-
-        # Create symmetric sample directory
-        symmetric_sample['case_identifier'] = sample['case_identifier'] + '_sym'
-        sample_dir = os.path.join(samples_dir, symmetric_sample['case_identifier'])
-        utils.mkdir_ifnotexists(sample_dir)
-
-        # Symmetrize mesh
-        mesh = trimesh.load_mesh(sample['mesh'])
-        mesh_sym = symmetrize_mesh(mesh)
-        symmetric_sample['mesh'] = os.path.join(sample_dir, 'mesh.obj')
-        symmetric_sample['mesh_bounds'] = mesh_sym.bounds.tolist()
-        mesh_sym.export(symmetric_sample['mesh'])
-
-        # Symmetrize yaw angles
-        symmetric_sample['yaw_angles'] = (-np.array(sample['yaw_angles'])).tolist()
-
-        symmetric_samples.append(symmetric_sample)
-
-    dataset['database']['samples'] += symmetric_samples
+    # Remove cases with background walls
+    if args.skip_walls:
+        dataset['database']['samples'] = [s for s in dataset['database']['samples'] if not s['background_wall']]
 
     # Compute stats for normalization
     min_corner = [-1,-1,-1]
@@ -74,9 +51,9 @@ if __name__ == '__main__':
     # Normlaize samples
     print('Normalizing and caching samples')
     for sample in tqdm(dataset['database']['samples']):
-        mesh_file = sample['mesh']
 
         # Load vertices and normals
+        mesh_file = sample['mesh']
         mesh = trimesh.load_mesh(mesh_file)
 
         # Normalize vertices
@@ -96,6 +73,18 @@ if __name__ == '__main__':
         fp = np.memmap(sample['mesh_preproc_cached'], dtype='float32', mode='w+', shape=point_set_mnlfld.shape)
         fp[:] = point_set_mnlfld[:]
         del fp
+
+        # Normalize cameras
+        cameras_preproc_dir = os.path.join(os.path.dirname(mesh_file), 'cameras_preproc')
+        cameras_preproc = []
+        create_directory(cameras_preproc_dir)
+        for idx, c in enumerate(sample['cameras']):
+            cam_preproc_file = os.path.join(cameras_preproc_dir, f'camera_{idx}.json')
+            cam_preproc = PinholeCamera().load(c)
+            cam_preproc.pose[:3,3] = (cam_preproc.pose[:3,3] + displacement) * scaling
+            cam_preproc.save(cam_preproc_file)
+            cameras_preproc.append(cam_preproc_file)
+        sample['cameras_preproc'] = cameras_preproc
 
     with open(args.output_dataset_path, 'w') as f:
         json.dump(dataset, f, indent=4)
