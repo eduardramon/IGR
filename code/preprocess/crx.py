@@ -77,14 +77,25 @@ if __name__ == '__main__':
         # Normalize cameras
         cameras_preproc_dir = os.path.join(os.path.dirname(mesh_file), 'cameras_preproc')
         cameras_preproc = []
+        cameras_preproc_cached = []
         create_directory(cameras_preproc_dir)
         for idx, c in enumerate(sample['cameras']):
+            # Preproc
             cam_preproc_file = os.path.join(cameras_preproc_dir, f'camera_{idx}.json')
             cam_preproc = PinholeCamera().load(c)
             cam_preproc.pose[:3,3] = (cam_preproc.pose[:3,3] + displacement) * scaling
+            cam_preproc.inverse_pose = np.linalg.inv(cam_preproc.pose)
             cam_preproc.save(cam_preproc_file)
             cameras_preproc.append(cam_preproc_file)
+
+            # Preproc and cached
+            cam_preproc_cached = np.dot(cam_preproc.calibration, cam_preproc.inverse_pose[:3,])
+            cam_preproc_cached_file = os.path.join(cameras_preproc_dir, f'camera_{idx}.npy')
+            np.save(cam_preproc_cached_file, cam_preproc_cached)
+            cameras_preproc_cached.append(cam_preproc_cached_file)
+
         sample['cameras_preproc'] = cameras_preproc
+        sample['cameras_preproc_cached'] = cameras_preproc_cached
 
     with open(args.output_dataset_path, 'w') as f:
         json.dump(dataset, f, indent=4)
