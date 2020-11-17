@@ -23,8 +23,10 @@ class ReconstructionRunner:
 
         print("running")
 
-        self.data = self.data.cuda()
-        self.data.requires_grad_()
+        self.points = utils.to_cuda(self.points)
+        self.points.requires_grad_()
+        self.masks = [utils.to_cuda(m) for m in self.masks]
+        self.cameras = [utils.to_cuda(c) for c in self.cameras]
 
         if self.eval:
 
@@ -40,12 +42,13 @@ class ReconstructionRunner:
 
         for epoch in range(self.startepoch, self.nepochs + 1):
 
-            indices = torch.tensor(np.random.choice(self.data.shape[0], self.points_batch, False))
+            indices = torch.tensor(np.random.choice(self.points.shape[0], self.points_batch, False))
 
-            cur_data = self.data[indices]
+            cur_data = self.points[indices]
 
             mnfld_pnts = cur_data[:, :self.d_in]
             mnfld_sigma = self.local_sigma[indices]
+
 
             if epoch % self.conf.get_int('train.checkpoint_frequency') == 0:
                 print('saving checkpoint: ', epoch)
@@ -88,6 +91,20 @@ class ReconstructionRunner:
             else:
                 normals_loss = torch.zeros(1)
 
+            # convex hull loss
+
+            if self.with_convex_hull:
+                sigmoid = torch.nn.Sigmoid()
+                s=1e3 # sigmoid input scaling
+                nonmnfld_pnts_flat = nonmnfld_pnts.view((-1,3))
+                with torch.no_grad():
+                    convex_hull = utils.convex_hull(nonmnfld_pnts_flat, self.cameras, self.masks, s=s) # {0: outside, 1: inside}
+                    idx_out = convex_hull < 0.5
+                nonmnfld_pred_flat = nonmnfld_pred.view((-1,1))   # {+: outside, -: inside}
+                convex_hull_pred = sigmoid(-s*nonmnfld_pred_flat) # {0: outside, 1: outside}
+                convex_hull_loss = (convex_hull[idx_out] - convex_hull_pred[idx_out]).norm(2, dim=-1).mean()
+                loss = loss + self.convex_hull_lambda * convex_hull_loss
+
             # back propagation
 
             self.optimizer.zero_grad()
@@ -98,9 +115,9 @@ class ReconstructionRunner:
 
             if epoch % self.conf.get_int('train.status_frequency') == 0:
                 print('Train Epoch: [{}/{} ({:.0f}%)]\tTrain Loss: {:.6f}\tManifold loss: {:.6f}'
-                    '\tGrad loss: {:.6f}\tNormals Loss: {:.6f}'.format(
+                    '\tGrad loss: {:.6f}\tNormals Loss: {:.6f}\t Convex hull Loss: {:.6f}'.format(
                     epoch, self.nepochs, 100. * epoch / self.nepochs,
-                    loss.item(), mnfld_loss.item(), grad_loss.item(), normals_loss.item()))
+                    loss.item(), mnfld_loss.item(), grad_loss.item(), normals_loss.item(), convex_hull_loss.item()))
 
     def plot_shapes(self, epoch, path=None, with_cuts=False):
         # plot network validation shapes
@@ -111,9 +128,9 @@ class ReconstructionRunner:
             if not path:
                 path = self.plots_dir
 
-            indices = torch.tensor(np.random.choice(self.data.shape[0], self.points_batch, False))
+            indices = torch.tensor(np.random.choice(self.points.shape[0], self.points_batch, False))
 
-            pnts = self.data[indices, :3]
+            pnts = self.points[indices, :3]
 
             plot_surface(with_points=True,
                          points=pnts,
@@ -137,7 +154,7 @@ class ReconstructionRunner:
         # config setting
 
         if type(kwargs['conf']) == str:
-            self.conf_filename = './reconstruction/' + kwargs['conf']
+            self.conf_filename = os.path.realpath(kwargs['conf'])
             self.conf = ConfigFactory.parse_file(self.conf_filename)
         else:
             self.conf = kwargs['conf']
@@ -177,18 +194,23 @@ class ReconstructionRunner:
 
         utils.mkdir_ifnotexists(utils.concat_home_dir(os.path.join(self.home_dir, self.exps_folder_name)))
 
-        self.input_file = self.conf.get_string('train.input_path')
-        self.data = utils.load_point_cloud_by_file_extension(self.input_file)
+        case_path = self.conf.get_string('train.case_path')
+        case_views = self.conf.get_int('train.case_views')
+        self.points = utils.load_point_cloud_by_file_extension(os.path.join(case_path, 'mesh_preproc.obj'))
+        self.masks = [utils.load_image(os.path.join(case_path, 'masks', f'mask_{v}.jpg'), mode='L')/255 for v in range(case_views)]
+        self.cameras = [utils.load_camera_by_extension(os.path.join(case_path, 'cameras_preproc', f'camera_{v}.npy')) for v in range(case_views)]
+        self.convex_hull_lambda = self.conf.get_float('train.convex_hull_lambda')
+        self.with_convex_hull = self.convex_hull_lambda != 0
 
         sigma_set = []
-        ptree = cKDTree(self.data)
+        ptree = cKDTree(self.points)
 
-        for p in np.array_split(self.data, 100, axis=0):
+        for p in np.array_split(self.points, 100, axis=0):
             d = ptree.query(p, 50 + 1)
             sigma_set.append(d[0][:, -1])
 
         sigmas = np.concatenate(sigma_set)
-        self.local_sigma = torch.from_numpy(sigmas).float().cuda()
+        self.local_sigma = utils.to_cuda(torch.from_numpy(sigmas).float())
 
         self.expdir = utils.concat_home_dir(os.path.join(self.home_dir, self.exps_folder_name, self.expname))
         utils.mkdir_ifnotexists(self.expdir)
