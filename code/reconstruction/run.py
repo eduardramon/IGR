@@ -50,7 +50,7 @@ class ReconstructionRunner:
             mnfld_sigma = self.local_sigma[indices]
 
 
-            if epoch % self.conf.get_int('train.checkpoint_frequency') == 0:
+            if epoch % self.conf.get_int('train.checkpoint_frequency') == 0 and epoch != 0:
                 print('saving checkpoint: ', epoch)
                 self.save_checkpoints(epoch)
                 print('plot validation epoch: ', epoch)
@@ -99,11 +99,13 @@ class ReconstructionRunner:
                 nonmnfld_pnts_flat = nonmnfld_pnts.view((-1,3))
                 with torch.no_grad():
                     convex_hull = utils.convex_hull(nonmnfld_pnts_flat, self.cameras, self.masks, s=s) # {0: outside, 1: inside}
-                    idx_out = convex_hull < 0.5
+                    idx_out = convex_hull < 0.5 # Outside points
                 nonmnfld_pred_flat = nonmnfld_pred.view((-1,1))   # {+: outside, -: inside}
                 convex_hull_pred = sigmoid(-s*nonmnfld_pred_flat) # {0: outside, 1: outside}
-                convex_hull_loss = (convex_hull[idx_out] - convex_hull_pred[idx_out]).norm(2, dim=-1).mean()
+                convex_hull_loss = convex_hull_pred[idx_out].mean() 
                 loss = loss + self.convex_hull_lambda * convex_hull_loss
+            else:
+                convex_hull_loss = torch.zeros(1)
 
             # back propagation
 
@@ -195,12 +197,10 @@ class ReconstructionRunner:
         utils.mkdir_ifnotexists(utils.concat_home_dir(os.path.join(self.home_dir, self.exps_folder_name)))
 
         case_path = self.conf.get_string('train.case_path')
-        case_views = self.conf.get_int('train.case_views')
+        case_views = len([f for f in os.listdir(os.path.join(case_path, 'images')) if f.endswith('.jpg')])
         self.points = utils.load_point_cloud_by_file_extension(os.path.join(case_path, 'mesh_preproc.obj'))
         self.masks = [utils.load_image(os.path.join(case_path, 'masks', f'mask_{v}.jpg'), mode='L')/255 for v in range(case_views)]
         self.cameras = [utils.load_camera_by_extension(os.path.join(case_path, 'cameras_preproc', f'camera_{v}.npy')) for v in range(case_views)]
-        self.convex_hull_lambda = self.conf.get_float('train.convex_hull_lambda')
-        self.with_convex_hull = self.convex_hull_lambda != 0
 
         sigma_set = []
         ptree = cKDTree(self.points)
@@ -247,8 +247,9 @@ class ReconstructionRunner:
                                                                                                  self.local_sigma)
         self.grad_lambda = self.conf.get_float('network.loss.lambda')
         self.normals_lambda = self.conf.get_float('network.loss.normals_lambda')
-
-        self.with_normals = self.normals_lambda > 0
+        self.with_normals = self.normals_lambda > 0 and self.points.size[1] == 6
+        self.convex_hull_lambda = self.conf.get_float('network.loss.convex_hull_lambda')
+        self.with_convex_hull = self.convex_hull_lambda > 0
 
         self.d_in = self.conf.get_int('train.d_in')
 
@@ -339,7 +340,7 @@ if __name__ == '__main__':
     parser.add_argument('--nepoch', type=int, default=100000, help='number of epochs to train for')
     parser.add_argument('--conf', type=str, default='setup.conf')
     parser.add_argument('--expname', type=str, default='single_shape')
-    parser.add_argument('--gpu', type=str, default='2', help='GPU to use [default: GPU auto]')
+    parser.add_argument('--gpu', type=str, default='ignore', help='GPU to use [default: GPU auto]')
     parser.add_argument('--is_continue', default=False, action="store_true", help='continue')
     parser.add_argument('--timestamp', default='latest', type=str)
     parser.add_argument('--checkpoint', default='latest', type=str)

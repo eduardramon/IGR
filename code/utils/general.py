@@ -88,7 +88,7 @@ def project(points, camera):
 
     P, D = points.size()
 
-    point_h = torch.cat((points, torch.ones((P,1))), dim=-1)
+    point_h = torch.cat((points, to_cuda(torch.ones((P,1)))), dim=-1)
     point_h_proj = torch.mm(camera, point_h.T).T
 
     return point_h_proj[:, :2] / point_h_proj[:, -1:]
@@ -131,8 +131,7 @@ def convex_hull(points, cams, masks, s=100):
 
     P, D = points.size()
     sigmoid = torch.nn.Sigmoid()
-
-    convex_hull = torch.ones(P)
+    convex_hull = to_cuda(torch.ones(P))
     for mask, cam in zip(masks, cams):
 
         p2d = project(points, cam)
