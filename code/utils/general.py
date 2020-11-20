@@ -125,7 +125,7 @@ def bilinear_sampling(im, points):
     return torch.t((torch.t(Ia)*wa)) + torch.t(torch.t(Ib)*wb) + torch.t(torch.t(Ic)*wc) + torch.t(torch.t(Id)*wd)
 
 
-def convex_hull(points, cams, masks, s=100):
+def convex_hull(points, cams, masks):
 
     # Soft mask values are assumed to be normalized between 0 and 1.
 
@@ -137,7 +137,7 @@ def convex_hull(points, cams, masks, s=100):
         p2d = project(points, cam)
         v = bilinear_sampling(mask, p2d)
 
-        convex_hull *= sigmoid(s*(v-0.5))
+        convex_hull *= sigmoid(v-0.5)
 
     return convex_hull
 
