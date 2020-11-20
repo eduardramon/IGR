@@ -135,9 +135,7 @@ def convex_hull(points, cams, masks):
     for mask, cam in zip(masks, cams):
 
         p2d = project(points, cam)
-        v = bilinear_sampling(mask, p2d)
-
-        convex_hull *= sigmoid(v-0.5)
+        convex_hull *= bilinear_sampling(mask, p2d)
 
     return convex_hull
 
