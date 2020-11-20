@@ -11,7 +11,7 @@ import argparse
 import GPUtil
 import torch
 import utils.general as utils
-from model.sample import Sampler
+from model.sample import Sampler, NormalPerPoint, MinGlobalToSurfaceDistance
 from model.network import gradient
 from scipy.spatial import cKDTree
 from utils.plots import plot_surface, plot_cuts
@@ -60,7 +60,13 @@ class ReconstructionRunner:
             self.network.train()
             self.adjust_learning_rate(epoch)
 
-            nonmnfld_pnts = self.sampler.get_points(mnfld_pnts.unsqueeze(0), mnfld_sigma.unsqueeze(0)).squeeze()
+            sampler_attrs = {
+                'pc_input': mnfld_pnts.unsqueeze(0),
+                'local_sigma': mnfld_sigma.unsqueeze(0)
+            }
+            if isinstance(self.sampler, MinGlobalToSurfaceDistance): sampler_attrs['kdtrees'] = [self.ptree]
+            nonmnfld_pnts_local, nonmnfld_pnts_global = self.sampler.get_points_local_global(**sampler_attrs)
+            nonmnfld_pnts = torch.cat([nonmnfld_pnts_local, nonmnfld_pnts_global], axis=1)
 
             # forward pass
 
@@ -96,13 +102,12 @@ class ReconstructionRunner:
             if self.with_convex_hull:
                 sigmoid = torch.nn.Sigmoid()
                 s=1e3 # sigmoid input scaling
-                nonmnfld_pnts_flat = nonmnfld_pnts.view((-1,3))
+                nonmnfld_pnts_global_flat = nonmnfld_pnts_global.view((-1,3)) # Only act in global points
                 with torch.no_grad():
-                    convex_hull = utils.convex_hull(nonmnfld_pnts_flat, self.cameras, self.masks, s=s) # {0: outside, 1: inside}
-                    idx_out = convex_hull < 0.5 # Outside points
-                nonmnfld_pred_flat = nonmnfld_pred.view((-1,1))   # {+: outside, -: inside}
-                convex_hull_pred = sigmoid(-s*nonmnfld_pred_flat) # {0: outside, 1: outside}
-                convex_hull_loss = convex_hull_pred[idx_out].mean() 
+                    convex_hull = utils.convex_hull(nonmnfld_pnts_global_flat, self.cameras, self.masks, s=s) # {0: outside, 1: inside}
+                nonmnfld_pred_global_flat = nonmnfld_pred[:,-len(nonmnfld_pnts_global[0]):,:].view((-1,1))   # {+: outside, -: inside}
+                convex_hull_pred = sigmoid(-s*nonmnfld_pred_global_flat) # {0: outside, 1: inside}
+                convex_hull_loss = (convex_hull_pred - convex_hull).norm(2, dim=-1).mean()
                 loss = loss + self.convex_hull_lambda * convex_hull_loss
             else:
                 convex_hull_loss = torch.zeros(1)
@@ -203,10 +208,10 @@ class ReconstructionRunner:
         self.cameras = [utils.load_camera_by_extension(os.path.join(case_path, 'cameras_preproc', f'camera_{v}.npy')) for v in range(case_views)]
 
         sigma_set = []
-        ptree = cKDTree(self.points)
+        self.ptree = cKDTree(self.points)
 
         for p in np.array_split(self.points, 100, axis=0):
-            d = ptree.query(p, 50 + 1)
+            d = self.ptree.query(p, 50 + 1)
             sigma_set.append(d[0][:, -1])
 
         sigmas = np.concatenate(sigma_set)
@@ -243,11 +248,12 @@ class ReconstructionRunner:
         self.points_batch = kwargs['points_batch']
 
         self.global_sigma = self.conf.get_float('network.sampler.properties.global_sigma')
+
         self.sampler = Sampler.get_sampler(self.conf.get_string('network.sampler.sampler_type'))(self.global_sigma,
                                                                                                  self.local_sigma)
         self.grad_lambda = self.conf.get_float('network.loss.lambda')
         self.normals_lambda = self.conf.get_float('network.loss.normals_lambda')
-        self.with_normals = self.normals_lambda > 0 and self.points.size[1] == 6
+        self.with_normals = self.normals_lambda > 0 and self.points.size()[1] == 6
         self.convex_hull_lambda = self.conf.get_float('network.loss.convex_hull_lambda')
         self.with_convex_hull = self.convex_hull_lambda > 0
 

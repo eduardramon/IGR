@@ -23,12 +23,16 @@ class NormalPerPoint(Sampler):
         self.local_sigma = local_sigma
 
     def get_points(self, pc_input, local_sigma=None):
+        sample_local, sample_global = self.get_points_local_global(pc_input, local_sigma)
+        return torch.cat([sample_local, sample_global], dim=1)
+
+    def get_points_local_global(self, pc_input, local_sigma=None):
         batch_size, sample_size, dim = pc_input.shape
 
-        sample_local = self.get_points_local(pc_input, local_sigma, n_points=sample_size)
+        sample_local = self.get_points_local(pc_input, sample_size, local_sigma)
         sample_global = self.get_points_global(pc_input, n_points=sample_size//8)
 
-        return torch.cat([sample_local, sample_global], dim=1)
+        return sample_local, sample_global
 
     def get_points_local(self, pc_input, n_points, local_sigma=None):
         batch_size, sample_size, dim = pc_input.shape
@@ -49,15 +53,19 @@ class MinGlobalToSurfaceDistance(NormalPerPoint):
         self.min_glob2surf_dist = min_glob2surf_dist
 
     def get_points(self, pc_input, kdtrees, local_sigma=None):
-        batch_size, sample_size, dim = pc_input.shape
-
-        sample_local = self.get_points_local(pc_input, local_sigma, n_points=sample_size)
-        sample_global = self.get_points_global(kdtrees, batch_size, sample_size//8, dim, pc_input.device)
-
+        sample_local, sample_global = self.get_points_local_global(pc_input, kdtrees, local_sigma)
         return torch.cat([sample_local, sample_global], dim=1)
 
+    def get_points_local_global(self, pc_input, kdtrees, local_sigma=None):
+        batch_size, sample_size, dim = pc_input.shape
+
+        sample_local = self.get_points_local(pc_input, sample_size, local_sigma)
+        sample_global = self.get_points_global(kdtrees, batch_size, sample_size//8, dim, pc_input.device)
+
+        return sample_local, sample_global
+
     def get_points_global(self, kdtrees, batch_size, n_points, dim, device):
-        return torch.cat([self.sample_global(kdtrees[b], n_points, dim) for b in range(batch_size)], dim=0).to(device)
+        return torch.cat([torch.unsqueeze(self.sample_global(kdtrees[b], n_points, dim), dim=0) for b in range(batch_size)], dim=0).to(device)
 
     def sample_global(self, kdtree, n_points, dim):
 
