@@ -66,7 +66,7 @@ class ReconstructionRunner:
             }
             if isinstance(self.sampler, MinGlobalToSurfaceDistance): sampler_attrs['kdtrees'] = [self.ptree]
             nonmnfld_pnts_local, nonmnfld_pnts_global = self.sampler.get_points_local_global(**sampler_attrs)
-            nonmnfld_pnts = torch.cat([nonmnfld_pnts_local, nonmnfld_pnts_global], axis=1)
+            nonmnfld_pnts = torch.cat([nonmnfld_pnts_local, nonmnfld_pnts_global], axis=1).squeeze()
 
             # forward pass
 
