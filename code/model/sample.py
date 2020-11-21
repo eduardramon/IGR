@@ -38,9 +38,9 @@ class NormalPerPoint(Sampler):
         batch_size, sample_size, dim = pc_input.shape
 
         if local_sigma is not None:
-            return pc_input[:,:n_points,:] + (torch.rand(batch_size, n_points, dim, device=pc_input.device) * local_sigma.unsqueeze(-1))
+            return pc_input[:,:n_points,:] + (torch.randn(batch_size, n_points, dim, device=pc_input.device) * local_sigma.unsqueeze(-1))
         else:
-            return pc_input[:,:n_points,:] + (torch.rand(batch_size, n_points, dim, device=pc_input.device) * self.local_sigma)
+            return pc_input[:,:n_points,:] + (torch.randn(batch_size, n_points, dim, device=pc_input.device) * self.local_sigma)
 
     def get_points_global(self, pc_input, n_points):
         batch_size, sample_size, dim = pc_input.shape
