@@ -251,7 +251,7 @@ class ShapeSpaceRunner:
                                                       num_workers=kwargs['threads'], drop_last=True, pin_memory=True)
         self.eval_dataloader = torch.utils.data.DataLoader(self.ds,
                                                            batch_size=1,
-                                                           shuffle=True,
+                                                           shuffle=False,
                                                            num_workers=0, drop_last=True)
 
         self.network = utils.get_class(self.conf.get_string('train.network_class'))(d_in=(self.d_in+self.latent_size), **self.conf.get_config('network.inputs'))
