@@ -101,11 +101,11 @@ class ReconstructionRunner:
 
             if self.with_convex_hull:
                 sigmoid = torch.nn.Sigmoid()
-                nonmnfld_pnts_global_flat = nonmnfld_pnts_global.view((-1,3)) # Only act in global points
+                nonmnfld_pnts_global_flat = nonmnfld_pnts_global.squeeze()                               # Only act in global points
                 with torch.no_grad():
-                    convex_hull = utils.convex_hull(nonmnfld_pnts_global_flat, self.cameras, self.masks)   # {0: outside, 1: inside}
-                nonmnfld_pred_global_flat = nonmnfld_pred[:,-len(nonmnfld_pnts_global[0]):,:].view((-1,1)) # {+: outside, -: inside}
-                convex_hull_pred = sigmoid(-nonmnfld_pred_global_flat) # {0: outside, 1: inside}
+                    convex_hull = utils.convex_hull(nonmnfld_pnts_global_flat, self.cameras, self.masks) # {0: outside, 1: inside}
+                nonmnfld_pred_global_flat = nonmnfld_pred[-len(nonmnfld_pnts_global_flat):,:]            # {+: outside, -: inside}
+                convex_hull_pred = sigmoid(-nonmnfld_pred_global_flat)                                   # {0: outside, 1: inside}
                 convex_hull_loss = (convex_hull_pred - convex_hull).norm(2, dim=-1).mean()
                 loss = loss + self.convex_hull_lambda * convex_hull_loss
             else:
