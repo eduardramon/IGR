@@ -48,7 +48,7 @@ class NormalPerPoint(Sampler):
 
 class MinGlobalToSurfaceDistance(NormalPerPoint):
 
-    def __init__(self, global_sigma, local_sigma, min_glob2surf_dist=0.1):
+    def __init__(self, global_sigma, local_sigma=0.01, min_glob2surf_dist=0.1):
         super().__init__(global_sigma, local_sigma)
         self.min_glob2surf_dist = min_glob2surf_dist
 
