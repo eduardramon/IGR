@@ -6,6 +6,7 @@ import numpy as np
 import os
 import tqdm
 import utils.general as utils
+import random
 
 
 class CRXDataSet(data.Dataset):
@@ -21,12 +22,15 @@ class CRXDataSet(data.Dataset):
 
         self.load(dataset_path)
 
-    def load_points_normals(self, index):
+    def load_points_normals(self, index, sym):
+        identifier = self.identifiers[index] + ('_sym' if sym else '')
+        index = self.map[identifier]
         return np.memmap(self.samples[index]['mesh_preproc_cached'], dtype='float32', mode='r').reshape(-1,6).astype(np.float32)
 
     def __getitem__(self, index):
 
-        point_set_mnlfld = torch.from_numpy(self.load_points_normals(index)).float()
+        is_sym = bool(random.getrandbits(1))
+        point_set_mnlfld = torch.from_numpy(self.load_points_normals(index, is_sym)).float()
 
         random_idx = torch.randperm(point_set_mnlfld.shape[0])[:self.points_batch]
         point_set_mnlfld = torch.index_select(point_set_mnlfld, 0, random_idx)
@@ -37,15 +41,23 @@ class CRXDataSet(data.Dataset):
         else:
             normals = torch.empty(0)
 
-        return point_set_mnlfld[:, :self.d_in], normals, index
+        return point_set_mnlfld[:, :self.d_in], normals, index, is_sym
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.identifiers)
 
     def get_info(self, index):
-        return [self.samples[index]['case_identifier']]
+        return [self.identifiers[index]]
 
     def load(self, dataset_path):
         with open(dataset_path) as f:
             self.dataset = json.load(f)
+
+        # Get all samples from split
         self.samples = [s for s in self.dataset['database']['samples'] if s['case_identifier'] in self.split]
+
+        # Get samples identifiers from split without symmetrics
+        self.identifiers = [s['case_identifier'] for s in self.samples if '_sym' not in s['case_identifier']]
+
+        # Identifiers-Index map
+        self.map = {s['case_identifier']:i for i, s in enumerate(self.samples)}

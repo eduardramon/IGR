@@ -7,6 +7,7 @@ from time import time
 import argparse
 import json
 import torch
+import numpy as np
 
 code_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, code_dir)
@@ -35,7 +36,7 @@ class ShapeSpaceRunner:
 
             # start epoch
             before_epoch = time()
-            for data_index,(mnfld_pnts, normals, indices) in enumerate(self.train_dataloader):
+            for data_index,(mnfld_pnts, normals, indices, is_sym) in enumerate(self.train_dataloader):
 
                 mnfld_pnts = utils.to_cuda(mnfld_pnts)
 
@@ -44,8 +45,8 @@ class ShapeSpaceRunner:
 
                 nonmnfld_pnts = self.sampler.get_points(mnfld_pnts)
 
-                mnfld_pnts = self.add_latent(mnfld_pnts, indices)
-                nonmnfld_pnts = self.add_latent(nonmnfld_pnts, indices)
+                mnfld_pnts = self.add_latent(mnfld_pnts, indices, is_sym)
+                nonmnfld_pnts = self.add_latent(nonmnfld_pnts, indices, is_sym)
 
                 # forward pass
 
@@ -107,7 +108,7 @@ class ShapeSpaceRunner:
             print('plot validation epoch: ', epoch)
 
             self.network.eval()
-            pnts, normals, idx = next(iter(self.eval_dataloader))
+            pnts, normals, idx, _ = next(iter(self.eval_dataloader))
             pnts = utils.to_cuda(pnts)
 
             pnts = self.add_latent(pnts, idx)
@@ -330,13 +331,14 @@ class ShapeSpaceRunner:
 
         return schedules
 
-    def add_latent(self, points, indices):
+    def add_latent(self, points, indices, is_sym=None):
         batch_size, num_of_points, dim = points.shape
         points = points.reshape(batch_size * num_of_points, dim)
         latent_inputs = utils.to_cuda(torch.zeros(0))
+        is_sym_np = is_sym.numpy() if is_sym is not None else np.zeros_like(indices, dtype=bool)
 
-        for ind in indices.numpy():
-            latent_ind = self.lat_vecs[ind]
+        for ind, sym in zip(indices.numpy(), is_sym_np):
+            latent_ind = self.lat_vecs[ind] if not sym else -self.lat_vecs[ind]
             latent_repeat = latent_ind.expand(num_of_points, -1)
             latent_inputs = torch.cat([latent_inputs, latent_repeat], 0)
         points = torch.cat([latent_inputs, points], 1)
