@@ -11,7 +11,7 @@ import random
 
 class CRXDataSet(data.Dataset):
 
-    def __init__(self, dataset_path, split, points_batch=1024, d_in=3, with_gt=False, with_normals=False):
+    def __init__(self, dataset_path, split, points_batch=1024, d_in=3, with_gt=False, with_normals=False, with_symmetrics=False):
 
         self.dataset_path = dataset_path
         self.split = split
@@ -19,17 +19,27 @@ class CRXDataSet(data.Dataset):
         self.d_in = d_in
         self.with_gt = with_gt
         self.with_normals = with_normals
+        self.with_symmetrics = with_symmetrics
 
         self.load(dataset_path)
 
     def load_points_normals(self, index, sym):
         identifier = self.identifiers[index] + ('_sym' if sym else '')
         index = self.map[identifier]
-        return np.memmap(self.samples[index]['mesh_preproc_cached'], dtype='float32', mode='r').reshape(-1,6).astype(np.float32)
+        points = np.memmap(self.samples[index]['mesh_preproc_cached'], dtype='float32', mode='r').reshape(-1,6).astype(np.float32)
+
+        # This is for an experimental purpose
+        keep_left = bool(index % 2) 
+        if keep_left:
+            half_idx = points[:,0] > -0.1
+        else:
+            half_idx = points[:,0] < 0.1
+
+        return points[half_idx]
 
     def __getitem__(self, index):
 
-        is_sym = bool(random.getrandbits(1))
+        is_sym = bool(random.getrandbits(1)) if self.with_symmetrics else False
         point_set_mnlfld = torch.from_numpy(self.load_points_normals(index, is_sym)).float()
 
         random_idx = torch.randperm(point_set_mnlfld.shape[0])[:self.points_batch]
